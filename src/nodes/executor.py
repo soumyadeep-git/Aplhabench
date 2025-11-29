@@ -6,78 +6,77 @@ from src.utils.logger import log_event
 
 def executor_node(state: AgentState) -> dict:
     """
-    Writes the generated code to a file and executes it.
-    Captures stdout/stderr to feed back into the loop if needed.
+    Executes the code and streams output in real-time.
     """
     log_event("EXECUTOR", "Executing training script...")
     
     code = state["python_code"]
-    
-    # writing code to file
     script_path = "temp_train.py"
+    
+    # write code to file
     with open(script_path, "w") as f:
         f.write(code)
         
-    # executing
-    try:
-        # run with a timeout of 24 hours, but practically 
-        # we want it faster. Using sys.executable to ensure we use the same venv.
-        result = subprocess.run(
-            [sys.executable, script_path],
-            capture_output=True,
-            text=True,
-            timeout=3600 * 24 
-        )
-        
-        stdout = result.stdout
-        stderr = result.stderr
-        return_code = result.returncode
-        
-        log_event("EXECUTOR", f"Finished with return code: {return_code}")
-        
-        # printing error to console
-        if return_code != 0:
-            print(f"\n❌ EXECUTION ERROR:\n{stderr}\n")
+    # real time
+    process = subprocess.Popen(
+        [sys.executable, script_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1, # Line buffered
+        universal_newlines=True
+    )
 
-        if return_code == 0:
-            # check if submission.csv was actually created
-            if os.path.exists("submission.csv"):
-                log_event("EXECUTOR", "Success! submission.csv found.")
-                return {
-                    "execution_stdout": stdout,
-                    "execution_stderr": "",
-                    "success": True,
-                    "reasoning_trace": ["Execution successful. submission.csv generated."]
-                }
-            else:
-                log_event("EXECUTOR", "Script ran but no submission.csv found.")
-                return {
-                    "execution_stdout": stdout,
-                    "execution_stderr": "Script finished 0 but 'submission.csv' was not found. Ensure you save the file.",
-                    "success": False,
-                    "reasoning_trace": ["Execution ran, but no output file."]
-                }
-        else:
-            log_event("EXECUTOR", "Execution failed.")
+    stdout_buffer = []
+    stderr_buffer = []
+
+    # stream stdout to console
+    print("\n--- SCRIPT OUTPUT START ---")
+    while True:
+        output = process.stdout.readline()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            print(f"  {output.strip()}") # Print with indentation
+            stdout_buffer.append(output)
+            
+    # capture any remaining stderr
+    stderr_output = process.stderr.read()
+    if stderr_output:
+        print(f"--- SCRIPT ERROR ---\n{stderr_output}")
+        stderr_buffer.append(stderr_output)
+    print("--- SCRIPT OUTPUT END ---\n")
+
+    return_code = process.poll()
+    
+    # combine buffers
+    full_stdout = "".join(stdout_buffer)
+    full_stderr = "".join(stderr_buffer)
+    
+    log_event("EXECUTOR", f"Finished with return code: {return_code}")
+    
+    # sucess check
+    if return_code == 0:
+        if os.path.exists("submission.csv"):
+            log_event("EXECUTOR", "Success! submission.csv found.")
             return {
-                "execution_stdout": stdout,
-                "execution_stderr": stderr,
-                "success": False,
-                "iteration": state.get("iteration", 0) + 1,
-                "reasoning_trace": [f"Execution failed. Error: {stderr[:200]}..."]
+                "execution_stdout": full_stdout,
+                "execution_stderr": full_stderr,
+                "success": True,
+                "reasoning_trace": ["Execution successful. submission.csv generated."]
             }
-
-    except subprocess.TimeoutExpired:
+        else:
+            return {
+                "execution_stdout": full_stdout,
+                "execution_stderr": "Script finished 0 but 'submission.csv' was not found.",
+                "success": False,
+                "reasoning_trace": ["Execution ran, but no output file."]
+            }
+    else:
         return {
-            "execution_stderr": "Execution timed out.",
+            "execution_stdout": full_stdout,
+            "execution_stderr": full_stderr,
             "success": False,
             "iteration": state.get("iteration", 0) + 1,
-            "reasoning_trace": ["Execution timed out."]
-        }
-    except Exception as e:
-        return {
-            "execution_stderr": str(e),
-            "success": False,
-            "iteration": state.get("iteration", 0) + 1,
-            "reasoning_trace": [f"Execution error: {str(e)}"]
+            "reasoning_trace": [f"Execution failed. Error: {full_stderr[:200]}..."]
         }
