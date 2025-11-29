@@ -14,7 +14,7 @@ def should_retry(state: AgentState):
         return "reporter"
     
     current_iter = state.get("iteration", 0)
-    if current_iter < 3:
+    if current_iter < 5:
         return "coder" # go back to fix the code
     
     return "reporter" # give up and report what happened

@@ -1,4 +1,4 @@
-pEXPLORER_SYSTEM_PROMPT = """
+EXPLORER_SYSTEM_PROMPT = """
 You are a Kaggle Grandmaster and AI Expert. Your job is to analyze a dataset structure and determine the optimal machine learning strategy.
 
 You will be given:
