@@ -51,7 +51,9 @@ REQUIREMENTS:
    - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`).
    - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
    - Add `print(..., flush=True)` for all logs so they appear immediately.
-5. **Inference:** Generate predictions on the Test set (or `test.csv`).
+5. **Inference:** 
+   - Generate predictions on the Test set (or `test.csv`).
+   - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set (e.g. `test_df = test_df.iloc[:100]`).
 6. **Output:** Save the final predictions to a file named `submission.csv`.
    - Format must match `sample_submission.csv` if it exists.
 7. **Silence:** Do NOT use `plt.show()` or `input()`. Use `print()` for logs.
@@ -61,14 +63,15 @@ REQUIREMENTS:
    - Use `DistilBert` models for text classification speed.
 10. **HuggingFace Specifics:** 
    - If Classification: Rename target column to `'labels'`.
-   - Use `eval_strategy` instead of `evaluation_strategy`.
+   - **ALWAYS** use `eval_strategy` (NOT `evaluation_strategy`) in TrainingArguments.
 11. **Seq2Seq Tasks:** 
     - If Task is `SEQ2SEQ` (Text Normalization/Translation):
     - Do NOT use BERT Classifier.
     - Use `from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq`.
-    - Use model: `google-t5/t5-small` (fast and good).
+    - Use model: `google-t5/t5-small`.
     - **CRITICAL:** Tokenize both inputs (text) and targets (labels).
     - Use `predict_with_generate=True` during evaluation.
+    - **INFERENCE RULE:** For the final submission generation, you **MUST** use `model.generate(**inputs)` to generate the text output. Do NOT call `model(**inputs)` directly, as T5 requires decoder inputs. Decode the generated IDs using `tokenizer.batch_decode(..., skip_special_tokens=True)`.
 
 ERROR HANDLING:
 If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
