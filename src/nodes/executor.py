@@ -7,24 +7,30 @@ from src.utils.logger import log_event
 def executor_node(state: AgentState) -> dict:
     """
     Executes the code and streams output in real-time.
+    Returns iteration=1 on failure to increment the global counter by 1.
     """
     log_event("EXECUTOR", "Executing training script...")
     
     code = state["python_code"]
     script_path = "temp_train.py"
     
-    # write code to file
+    # Write code to file
     with open(script_path, "w") as f:
         f.write(code)
+
+    env = os.environ.copy()
+    env["TOKENIZERS_PARALLELISM"] = "false"   
         
     # real time
+    # using Popen to stream the output line-by-line
     process = subprocess.Popen(
-        [sys.executable, script_path],
+        [sys.executable, "-u", script_path], 
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        bufsize=1, # Line buffered
-        universal_newlines=True
+        bufsize=1, 
+        universal_newlines=True,
+        env=env # Pass the modified environment
     )
 
     stdout_buffer = []
@@ -37,7 +43,7 @@ def executor_node(state: AgentState) -> dict:
         if output == '' and process.poll() is not None:
             break
         if output:
-            print(f"  {output.strip()}") # Print with indentation
+            print(f"  {output.strip()}") 
             stdout_buffer.append(output)
             
     # capture any remaining stderr
@@ -55,7 +61,7 @@ def executor_node(state: AgentState) -> dict:
     
     log_event("EXECUTOR", f"Finished with return code: {return_code}")
     
-    # sucess check
+    # logic handling
     if return_code == 0:
         if os.path.exists("submission.csv"):
             log_event("EXECUTOR", "Success! submission.csv found.")
@@ -66,17 +72,20 @@ def executor_node(state: AgentState) -> dict:
                 "reasoning_trace": ["Execution successful. submission.csv generated."]
             }
         else:
+            log_event("EXECUTOR", "Script finished 0 but 'submission.csv' missing.")
             return {
                 "execution_stdout": full_stdout,
-                "execution_stderr": "Script finished 0 but 'submission.csv' was not found.",
+                "execution_stderr": "Script finished successfully (Exit 0) but 'submission.csv' was not found. Did you save the file?",
                 "success": False,
+                "iteration": 1, # Add 1 to global counter
                 "reasoning_trace": ["Execution ran, but no output file."]
             }
     else:
+        log_event("EXECUTOR", "Execution failed.")
         return {
             "execution_stdout": full_stdout,
             "execution_stderr": full_stderr,
             "success": False,
-            "iteration": state.get("iteration", 0) + 1,
+            "iteration": 1, # Add 1 to global counter
             "reasoning_trace": [f"Execution failed. Error: {full_stderr[:200]}..."]
         }
