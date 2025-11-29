@@ -1,0 +1,24 @@
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Mac System
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Project Specific
+data/
+logs/
+submission/
+
+# Generated Code (Optional, but good to ignore temporary scripts)
+temp_train.py
