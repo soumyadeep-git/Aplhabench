@@ -6,3 +6,11 @@ pandas
 numpy
 python-dotenv
 tiktoken
+transformers
+accelerate
+scikit-learn
+xgboost
+lightgbm
+torch
+torchvision
+datasets
