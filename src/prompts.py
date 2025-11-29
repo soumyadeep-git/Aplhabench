@@ -44,11 +44,25 @@ REQUIREMENTS:
    - If TEXT: Use HuggingFace `datasets` or pandas.
 2. **Preprocessing:** Handle missing values, encoding, resizing (for images).
 3. **Model:** Implement the strategy provided (e.g., XGBoost, ResNet, BERT).
-4. **Training:** Train for a few epochs/iterations. Ensure it finishes in < 30 mins.
+4. **Training:** 
+   - Use 'batch_size=4' and `num_train_epochs=1`.
+   - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`).
+   - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
+   - Limit training to 1 epoch.
+   - Add `print(..., flush=True)` for all logs.
 5. **Inference:** Generate predictions on the Test set (or `test.csv`).
 6. **Output:** Save the final predictions to a file named `submission.csv`.
    - Format must match `sample_submission.csv` if it exists.
 7. **Silence:** Do NOT use `plt.show()` or `input()`. Use `print()` for logs.
+8. **Categorical Handling:** DO NOT use `LabelEncoder` for feature columns (only for targets). Use `OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)` or `pd.get_dummies`. This prevents errors with unseen labels in test data.
+9. **Modern Imports:** The `transformers` library has changed. 
+   - NEVER import `AdamW` from `transformers`. 
+   - ALWAYS use `from torch.optim import AdamW`.
+   - Use `DistilBert` models for speed.
+10. **HuggingFace Specifics:** 
+   - You **MUST** rename the target column to `'labels'` in the dataset (e.g., `ds = ds.rename_column('author', 'labels')`).
+   - Use `eval_strategy` instead of `evaluation_strategy` in TrainingArguments.
+
 
 ERROR HANDLING:
 If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
