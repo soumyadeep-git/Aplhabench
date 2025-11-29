@@ -25,9 +25,11 @@ class AgentState(TypedDict):
     python_code: str          
     
     #feedback aka the learning stage
-    execution_log: str        
+    execution_log: str   
+    execution_stdout: str
+    execution_stderr: str     
     success: bool             
-    iterations: int           
+    iteration: Annotated[int, operator.add]          
     
     #logging
     reasoning_trace: Annotated[List[str], operator.add] 
