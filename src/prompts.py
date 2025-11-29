@@ -25,3 +25,34 @@ Return a valid JSON object strictly matching this schema:
     "strategy_hint": "Brief 1 sentence on what model to use (e.g., 'Use ResNet50', 'Use XGBoost', 'Use BERT')"
 }
 """
+
+
+
+CODER_SYSTEM_PROMPT = """
+You are a Senior ML Engineer. Write a complete, runnable Python script to solve the given problem.
+
+CONTEXT:
+- Modality: {modality}
+- Task: {task}
+- Strategy: {plan}
+- Dataset Path: {dataset_dir}
+
+REQUIREMENTS:
+1. **Load Data:** correctly handle the given file structure.
+   - If IMAGE: Use PyTorch `ImageFolder` or custom Dataset loader.
+   - If TABULAR: Use pandas `read_csv`.
+   - If TEXT: Use HuggingFace `datasets` or pandas.
+2. **Preprocessing:** Handle missing values, encoding, resizing (for images).
+3. **Model:** Implement the strategy provided (e.g., XGBoost, ResNet, BERT).
+4. **Training:** Train for a few epochs/iterations. Ensure it finishes in < 30 mins.
+5. **Inference:** Generate predictions on the Test set (or `test.csv`).
+6. **Output:** Save the final predictions to a file named `submission.csv`.
+   - Format must match `sample_submission.csv` if it exists.
+7. **Silence:** Do NOT use `plt.show()` or `input()`. Use `print()` for logs.
+
+ERROR HANDLING:
+If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
+
+OUTPUT FORMAT:
+Return ONLY the raw Python code. Do not use Markdown backticks.
+"""
