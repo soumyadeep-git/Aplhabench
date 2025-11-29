@@ -1,10 +1,11 @@
 import argparse
 import os
 import sys
+import shutil
 from src.graph import create_graph
 
 def main():
-    # 1. parse arguments
+    # 1. Parse Arguments
     parser = argparse.ArgumentParser(description="MLEbench Autonomous Agent")
     parser.add_argument(
         "--dataset", 
@@ -16,7 +17,7 @@ def main():
 
     dataset_path = os.path.abspath(args.dataset)
     
-    # 2. validation
+    # 2. Validation
     if not os.path.exists(dataset_path):
         print(f"❌ Error: Dataset path '{dataset_path}' does not exist.")
         sys.exit(1)
@@ -24,11 +25,23 @@ def main():
     print(f"🚀 Starting Autonomous Agent on: {dataset_path}")
     print("---------------------------------------------------")
 
-    # 3. setup environment
+    # 3. Setup Environment
     os.makedirs("submission", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
 
-    # 4. initialize state
+    
+    # delete old submission files so we don't get false positives
+    # if the current run fails but an old file exists.
+    if os.path.exists("submission/submission.csv"):
+        print("🗑️  Cleaning up previous submission.csv...")
+        os.remove("submission/submission.csv")
+    
+    # Also clean up previous temp training scripts
+    if os.path.exists("temp_train.py"):
+        os.remove("temp_train.py")
+    
+
+    # 4. Initialize State
     initial_state = {
         "dataset_dir": dataset_path,
         "iteration": 0,
@@ -36,7 +49,7 @@ def main():
         "reasoning_trace": []
     }
 
-    # 5. build and run graph
+    # 5. Build and Run Graph
     try:
         app = create_graph()
         final_state = app.invoke(initial_state)
@@ -52,6 +65,9 @@ def main():
             
     except Exception as e:
         print(f"❌ Critical System Error: {str(e)}")
+        # Print full traceback for debugging
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":
