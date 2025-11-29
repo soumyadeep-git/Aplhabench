@@ -52,6 +52,9 @@ REQUIREMENTS:
 
 ERROR HANDLING:
 If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
+- If the error is "XGBoost Library could not be loaded" or "libomp not found", DO NOT try to fix the installation. IMMEDIATEY switch to using `sklearn.ensemble.GradientBoostingClassifier` or `RandomForestClassifier`.
+- If a library is missing, use a standard alternative from `sklearn` or `torch`.
+
 
 OUTPUT FORMAT:
 Return ONLY the raw Python code. Do not use Markdown backticks.
