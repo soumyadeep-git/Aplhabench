@@ -5,29 +5,19 @@ from src.prompts import CODER_SYSTEM_PROMPT
 from src.utils.logger import log_event
 
 def coder_node(state: AgentState) -> dict:
-    """
-    Generates Python code based on the analysis and plan.
-    If there was an error in the previous run, it tries to fix it.
-    """
-    log_event("CODER", "Generating training script...")
+    # check iteration count. If > 0, we are definitely retrying.
+    iteration = state.get("iteration", 0)
+    previous_error = state.get("execution_stderr", "")
     
-    llm = get_llm(temperature=0.2) # Slight creativity for coding
+    # we are retrying if we have an error OR if iteration > 0
+    is_retry = iteration > 0 or bool(previous_error)
     
-    # check if we are retrying
-    error_context = ""
-    if state.get("execution_stderr"):
-        error_context = f"""
-        !!! PREVIOUS CODE FAILED !!!
-        ERROR MESSAGE:
-        {state['execution_stderr']}
-        
-        PREVIOUS CODE:
-        {state.get('python_code', 'N/A')}
-        
-        Fix the error and output the corrected code.
-        """
+    log_event("CODER", f"Generating training script... (Retry: {is_retry}, Iteration: {iteration})")
     
-    # fill the prompt template
+    # boost creativity if we are scodtuck in a loop
+    temp = 0.4 if is_retry else 0.1
+    llm = get_llm(temperature=temp)
+    
     system_prompt = CODER_SYSTEM_PROMPT.format(
         modality=state["detected_modality"],
         task=state["detected_task"],
@@ -41,9 +31,20 @@ def coder_node(state: AgentState) -> dict:
     
     METADATA:
     {state.get('metadata', {})}
-    
-    {error_context}
     """
+    
+    if is_retry:
+        user_content += f"""
+        \n!!! CRITICAL: PREVIOUS CODE FAILED (Attempt {iteration}) !!!
+        
+        ERROR MESSAGE:
+        {previous_error}
+        
+        INSTRUCTIONS:
+        1. The previous code crashed. DO NOT generate the same code.
+        2. Check imports carefully. (e.g., AdamW is in torch.optim, NOT transformers).
+        3. Fix the specific error shown above.
+        """
     
     messages = [
         SystemMessage(content=system_prompt),
@@ -51,11 +52,9 @@ def coder_node(state: AgentState) -> dict:
     ]
     
     response = llm.invoke(messages)
-    
-    # clean code
     code = response.content.replace("```python", "").replace("```", "").strip()
     
     return {
         "python_code": code,
-        "reasoning_trace": ["Coder generated new script."]
+        "reasoning_trace": [f"Coder generated script (Retry={is_retry})"]
     }
