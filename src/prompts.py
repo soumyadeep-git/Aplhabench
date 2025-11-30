@@ -48,9 +48,11 @@ REQUIREMENTS:
 3. **Model:** Implement the strategy provided (e.g., XGBoost, ResNet, BERT, T5).
 4. **Training:** 
    - Use `batch_size=4` and `num_train_epochs=1`.
-   - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`).
-   - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
-   - Add `print(..., flush=True)` for all logs so they appear immediately.
+   - Subsample data to 1000 rows.
+   - Set `save_strategy="no"`.
+   - **CRITICAL:** Split data into Train/Validation (e.g. 80/20).
+   - **CRITICAL:** At the end, evaluate on the Validation set and PRINT the metric in this format:
+     `FINAL METRIC: {"name": "accuracy", "value": 0.85}` (or rmse/f1 as appropriate).
 5. **Inference:** Generate predictions on the Test set (or `test.csv`).
    - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set.
 6. **Output:** Save the final predictions to a file named `submission.csv`.
