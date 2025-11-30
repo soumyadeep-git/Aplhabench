@@ -22,6 +22,7 @@ def coder_node(state: AgentState) -> dict:
         modality=state["detected_modality"],
         task=state["detected_task"],
         plan=state["plan"],
+        target_column=state["target_column"],
         dataset_dir=state["dataset_dir"]
     )
     
