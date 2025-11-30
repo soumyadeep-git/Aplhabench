@@ -43,26 +43,30 @@ CONTEXT:
 - Dataset Path: {dataset_dir}
 
 REQUIREMENTS:
+
+0. **CRITICAL DISK CLEANUP (NEW):** To prevent disk overflow during training, use `shutil.rmtree` to delete temporary directories like 'runs', 'results', 'logs', and 'checkpoints' *before* initializing the Trainer, if they exist. Use `import shutil`.
 1. **Robust Data Loading (CRITICAL):** 
    - When loading images or audio from a CSV, **verify the paths exist**.
    - If `os.path.exists(path)` is False:
      - Try prepending the folder name (e.g., `os.path.join(dataset_dir, 'audio', filename)`).
      - Try adding extensions (e.g., `filename + '.wav'`).
      - Try searching recursively (e.g., `glob.glob(f"**/{{filename}}*", recursive=True)`).
-   - **FALLBACK:** If CSV paths fail completely, ignore the CSV and load ALL files found in the directory using `glob` (e.g. `glob.glob(f"{{dataset_dir}}/**/*.wav", recursive=True)`), assigning dummy labels if necessary to ensure the code runs.
+   - **FALLBACK (CRITICAL):** If CSV paths fail completely, ignore the CSV and load ALL files found in the directory using `glob` (e.g. `glob.glob(f"{{dataset_dir}}/**/*.wav", recursive=True)`). If you must extract labels from filenames/paths, use robust extraction (e.g., regex checks or parent directory name) and **ensure the final label column is explicitly named 'labels' in the DataFrame.**
 
 2. **Preprocessing:** Handle missing values, encoding, resizing (for images).
 3. **Model:** Implement the strategy provided (e.g., XGBoost, ResNet, BERT, T5).
 4. **Training:** 
    - Use `batch_size=4` (or `batch_size=2` for Image/Audio).
    - Use `num_train_epochs=1`.
-   - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows/images only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`).
+   - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows/images only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`). For Audio/Vision, subsample to 200 items.
    - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
+   - **CRITICAL:** If `save_strategy="no"`, **ALWAYS** set `load_best_model_at_end=False`.
    - **CRITICAL:** Split data into Train/Validation (e.g. 80/20).
    - **CRITICAL:** At the end, evaluate on the Validation set and PRINT the metric in this format:
-     `FINAL METRIC: {{"name": "accuracy", "value": 0.85}}` (Use double braces for JSON).
+     `FINAL METRIC: {{{{ "name": "accuracy", "value": 0.85 }}}}` (Use double braces for JSON).
    - Add `print(..., flush=True)` for all logs so they appear immediately.
 5. **Inference:** Generate predictions on the Test set (or `test.csv`).
+   - **CRITICAL TEST FILE CHECK:** If `test.csv` or a specific file (e.g., `en_test.csv`) is missing, iterate through the directory to find any CSV containing the word 'test' or 'sample_submission' and load that file for inference.
    - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set.
 6. **Output:** Save the final predictions to a file named `submission.csv`.
    - Format must match `sample_submission.csv` if it exists.
@@ -78,9 +82,12 @@ REQUIREMENTS:
 11. **Seq2Seq Tasks:** 
     - If Task is `SEQ2SEQ` (Text Normalization/Translation):
     - Do NOT use BERT Classifier.
-    - Use `from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq`.
+    - **CRITICAL IMPORTS:** Use `from datasets import Dataset` and `from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq`.
     - Use model: `google-t5/t5-small`.
-    - **CRITICAL:** Tokenize both inputs (text) and targets (labels).
+    - **CRITICAL:** When defining Seq2SeqTrainingArguments, use **eval_strategy** (NOT evaluation_strategy) and **logging_strategy** (NOT logging_evaluation_strategy).
+
+    - **CRITICAL DATA PREP:** After loading the initial DataFrame (which contains 'before' and 'after'), **rename the target column to 'labels'**. The input column is usually 'before'.
+    - **CRITICAL TOKENIZATION:** The tokenization function MUST be defined as `def preprocess_function(examples):`. When using `batched=True`, the input access MUST be direct: `tokenizer(examples['before'], ...)` and `tokenizer(examples['labels'], ...)` **without any list comprehension like `[ex['before'] for ex in examples]`**.
     - Use `predict_with_generate=True` during evaluation.
     - **INFERENCE RULE:** Use `model.generate()` for final submission.
 12. **Image/Vision Tasks:**
@@ -90,30 +97,34 @@ REQUIREMENTS:
     - **CRITICAL:** Subsample the dataset to ONLY 200 images for training to prevent System RAM OOM.
     - Use `batch_size=2`.
     - **Dataset Format:** Your Dataset class `__getitem__` MUST return a dictionary: `return {{'pixel_values': inputs['pixel_values'][0], 'labels': label}}`.
+    - **CRITICAL TYPE CHECK:** If you encounter type errors during loss calculation (e.g., on MPS), ensure labels are cast correctly. If classification, use `torch.long`. If regression/MSE is used, use `torch.float32`.
     - Use `DefaultDataCollator`.
 13. **Audio Tasks:**
-    - Import `torchaudio` and `torchvision`.
+    - Import `librosa`, `torchaudio` and `torchvision`.
     - **Strategy:** Convert Audio -> MelSpectrogram -> ResNet-18.
+    - **CRITICAL DATA LOADING (FINAL FIX):** If `train.csv` is missing or the loaded labels are single-class (e.g., all 'src_wavs'), you must proceed with recursive glob. For label extraction in multi-class audio tasks where a CSV fails, prioritize extracting the label (e.g., species ID) from the first part of the filename using a pattern like: `r"([A-Za-z]+\d+)_"` to ensure unique classes are generated.
+    - **CRITICAL AUDIO LOADING:** Use `librosa.load(path, sr=None)` instead of `torchaudio.load` to avoid dependency issues. Convert the resulting numpy array to a torch tensor.
     - **Dataset Class:**
-      - Load audio: `waveform, sample_rate = torchaudio.load(path)`.
       - Transform: `transform = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_mels=64)`.
       - Convert to 3 channels: `spec = spec.repeat(3, 1, 1)` (to match ResNet input).
-      - Return dictionary: `return {{'pixel_values': spec, 'labels': label}}`.
+      - Return dictionary: `return {{'pixel_values': spec, 'labels': label_tensor.float()}}`.
     - **Model:** Use `AutoModelForImageClassification.from_pretrained("microsoft/resnet-18", num_labels=..., ignore_mismatched_sizes=True)`.
     - **CRITICAL:** Subsample to 200 files for speed.
     - **CRITICAL:** Use `eval_strategy="epoch"` (do NOT use `evaluation_strategy`).
 
 ERROR HANDLING:
 If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
-- If error contains "evaluation_strategy", CHANGE it to "eval_strategy".
+- If error contains "evaluation_strategy", CHANGE it to "eval_strategy". (CRITICAL: DO NOT REGRESS)
 - If error contains "size mismatch", ensure `ignore_mismatched_sizes=True`.
 - If error contains "XGBoost Library could not be loaded", switch to `sklearn.ensemble.GradientBoostingClassifier`.
 - If `loss` is missing in BERT, ensure column is named `'labels'`.
 - If OOM occurs, reduce batch size.
-- If error contains "TorchCodec is required" or "torchaudio.load" fails, **REPLACE torchaudio.load WITH librosa.load**.
-- **If error contains "only defined for floating types" (e.g., mse_loss_out_mps), ensure the target labels are explicitly converted to torch.float32 using .float() in the dataset's __getitem__ method.** <-- CRITICAL NEW RULE
-- If `num_samples=0`, it means your file paths are wrong. Use `glob` to find the actual files.
-
+- If error contains "only defined for floating types" or "TorchCodec is required", you must use **librosa.load** and ensure labels are cast to **torch.float32** in the dataset class `__getitem__` (or `torch.long` if appropriate, but float is safer if the loss function is ambiguous).
+- If error contains "num_samples=0" or "No data loaded", the path finding is the critical failure. For audio/vision tasks, ensure you use the most robust, fully recursive glob: `glob.glob(os.path.join(dataset_dir, "**/*.wav"), recursive=True)`. If the data frame is empty, stop filtering or subsampling.
+- If error contains "'NoneType' object has no attribute 'group'", implement a safety check (if/else) for the regex match during label extraction.
+- If error contains "keyword argument repeated", check the syntax of the TrainingArguments call for duplicate parameters.
+- If error contains "TypeError: string indices must be integers", rewrite `preprocess_function` to access columns directly (e.g., `examples['column_name']`) instead of iterating over the batch dictionary.
+- If the model reports `accuracy: 1.0` or raises `ValueError: Only one unique label found`, the labels are incorrect. **IMMEDIATE ACTION:** **REPLACE** the current label extraction logic with the robust pattern: `re.search(r"([A-Za-z]+\d+)_", os.path.basename(file))` to generate multiple unique classes from the filename prefix. Verify `len(le.classes_) > 1` before training. Use `LabelEncoder.inverse_transform` to decode predictions for the submission file.
 
 OUTPUT FORMAT:
 Return ONLY the raw Python code. Do not use Markdown backticks.
