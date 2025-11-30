@@ -51,9 +51,8 @@ REQUIREMENTS:
    - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`).
    - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
    - Add `print(..., flush=True)` for all logs so they appear immediately.
-5. **Inference:** 
-   - Generate predictions on the Test set (or `test.csv`).
-   - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set (e.g. `test_df = test_df.iloc[:100]`).
+5. **Inference:** Generate predictions on the Test set (or `test.csv`).
+   - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set.
 6. **Output:** Save the final predictions to a file named `submission.csv`.
    - Format must match `sample_submission.csv` if it exists.
 7. **Silence:** Do NOT use `plt.show()` or `input()`. Use `print()` for logs.
@@ -65,7 +64,6 @@ REQUIREMENTS:
    - If Classification: Rename target column to `'labels'`.
    - **ALWAYS** use `eval_strategy` (NOT `evaluation_strategy`) in TrainingArguments.
    - **NEVER** use `tokenizer` argument in Trainer for Vision tasks.
-
 11. **Seq2Seq Tasks:** 
     - If Task is `SEQ2SEQ` (Text Normalization/Translation):
     - Do NOT use BERT Classifier.
@@ -73,14 +71,16 @@ REQUIREMENTS:
     - Use model: `google-t5/t5-small`.
     - **CRITICAL:** Tokenize both inputs (text) and targets (labels).
     - Use `predict_with_generate=True` during evaluation.
-    - **INFERENCE RULE:** For the final submission generation, you **MUST** use `model.generate(**inputs)` to generate the text output. Do NOT call `model(**inputs)` directly, as T5 requires decoder inputs. Decode the generated IDs using `tokenizer.batch_decode(..., skip_special_tokens=True)`.
-
+    - **INFERENCE RULE:** Use `model.generate()` for final submission.
 12. **Image/Vision Tasks:**
     - Use `from transformers import AutoImageProcessor, AutoModelForImageClassification, TrainingArguments, Trainer, DefaultDataCollator`.
-    - **CRITICAL:** When loading the model, use `ignore_mismatched_sizes=True` (e.g., `from_pretrained("microsoft/resnet-50", num_labels=2, ignore_mismatched_sizes=True)`). This prevents size mismatch errors.
-    - **Dataset Format:** Your Dataset class `__getitem__` MUST return a **dictionary**, not a tuple. Example: `return {'pixel_values': inputs['pixel_values'][0], 'labels': label}`.
+    - **CRITICAL:** Use a TINY model: `microsoft/resnet-18` (Do NOT use ViT or ResNet-50).
+    - **CRITICAL:** When loading the model, use `ignore_mismatched_sizes=True` and `num_labels=2` (or correct class count).
+    - **CRITICAL:** Subsample the dataset to ONLY 200 images for training to prevent System RAM OOM (e.g., `dataset['train'] = dataset['train'].select(range(200))`).
+    - Use `batch_size=2` (Strict limit).
+    - **Dataset Format:** Your Dataset class `__getitem__` MUST return a dictionary: `return {{'pixel_values': inputs['pixel_values'][0], 'labels': label}}`.
     - Use `DefaultDataCollator`.
-    
+
 ERROR HANDLING:
 If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
 - If the error is "XGBoost Library could not be loaded", switch to `sklearn.ensemble.GradientBoostingClassifier`.
