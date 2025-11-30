@@ -48,11 +48,12 @@ REQUIREMENTS:
 3. **Model:** Implement the strategy provided (e.g., XGBoost, ResNet, BERT, T5).
 4. **Training:** 
    - Use `batch_size=4` and `num_train_epochs=1`.
-   - Subsample data to 1000 rows.
-   - Set `save_strategy="no"`.
+   - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`).
+   - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
    - **CRITICAL:** Split data into Train/Validation (e.g. 80/20).
    - **CRITICAL:** At the end, evaluate on the Validation set and PRINT the metric in this format:
-     `FINAL METRIC: {"name": "accuracy", "value": 0.85}` (or rmse/f1 as appropriate).
+     `FINAL METRIC: {{"name": "accuracy", "value": 0.85}}` (Use double braces for JSON).
+   - Add `print(..., flush=True)` for all logs so they appear immediately.
 5. **Inference:** Generate predictions on the Test set (or `test.csv`).
    - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set.
 6. **Output:** Save the final predictions to a file named `submission.csv`.
@@ -76,11 +77,11 @@ REQUIREMENTS:
     - **INFERENCE RULE:** Use `model.generate()` for final submission.
 12. **Image/Vision Tasks:**
     - Use `from transformers import AutoImageProcessor, AutoModelForImageClassification, TrainingArguments, Trainer, DefaultDataCollator`.
-    - **CRITICAL:** Use a TINY model: `microsoft/resnet-18` (Do NOT use ViT or ResNet-50).
+    - **CRITICAL:** Use a TINY model: `microsoft/resnet-18`.
     - **CRITICAL:** When loading the model, use `ignore_mismatched_sizes=True` and `num_labels=2` (or correct class count).
-    - **CRITICAL:** Subsample the dataset to ONLY 200 images for training to prevent System RAM OOM (e.g., `dataset['train'] = dataset['train'].select(range(200))`).
-    - Use `batch_size=2` (Strict limit).
-    - **Dataset Format:** Your Dataset class `__getitem__` MUST return a dictionary: `return {{'pixel_values': inputs['pixel_values'][0], 'labels': label}}`.
+    - **CRITICAL:** Subsample the dataset to ONLY 200 images for training to prevent System RAM OOM.
+    - Use `batch_size=2`.
+    - **Dataset Format:** Your Dataset class `__getitem__` MUST return a dictionary: `return {{'pixel_values': inputs['pixel_values'][0], 'labels': label}}` (Use double braces).
     - Use `DefaultDataCollator`.
 
 ERROR HANDLING:
