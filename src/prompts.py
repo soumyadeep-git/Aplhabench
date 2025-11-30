@@ -64,6 +64,8 @@ REQUIREMENTS:
 10. **HuggingFace Specifics:** 
    - If Classification: Rename target column to `'labels'`.
    - **ALWAYS** use `eval_strategy` (NOT `evaluation_strategy`) in TrainingArguments.
+   - **NEVER** use `tokenizer` argument in Trainer for Vision tasks.
+
 11. **Seq2Seq Tasks:** 
     - If Task is `SEQ2SEQ` (Text Normalization/Translation):
     - Do NOT use BERT Classifier.
@@ -73,6 +75,12 @@ REQUIREMENTS:
     - Use `predict_with_generate=True` during evaluation.
     - **INFERENCE RULE:** For the final submission generation, you **MUST** use `model.generate(**inputs)` to generate the text output. Do NOT call `model(**inputs)` directly, as T5 requires decoder inputs. Decode the generated IDs using `tokenizer.batch_decode(..., skip_special_tokens=True)`.
 
+12. **Image/Vision Tasks:**
+    - Use `from transformers import AutoImageProcessor, AutoModelForImageClassification, TrainingArguments, Trainer, DefaultDataCollator`.
+    - **CRITICAL:** When loading the model, use `ignore_mismatched_sizes=True` (e.g., `from_pretrained("microsoft/resnet-50", num_labels=2, ignore_mismatched_sizes=True)`). This prevents size mismatch errors.
+    - **Dataset Format:** Your Dataset class `__getitem__` MUST return a **dictionary**, not a tuple. Example: `return {'pixel_values': inputs['pixel_values'][0], 'labels': label}`.
+    - Use `DefaultDataCollator`.
+    
 ERROR HANDLING:
 If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and adjust the code.
 - If the error is "XGBoost Library could not be loaded", switch to `sklearn.ensemble.GradientBoostingClassifier`.
