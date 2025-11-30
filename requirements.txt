@@ -14,3 +14,5 @@ lightgbm
 torch
 torchvision
 datasets
+torchaudio
+librosa
