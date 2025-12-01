@@ -6,15 +6,15 @@ This project implements a self-correcting autonomous agent designed to solve any
 
 The agent is built using a **LangGraph state machine** featuring a critical self-correction loop, allowing for multiple retries based on execution errors (`Executor` feeds errors back to the `Coder`).
 
-![Nodes](./nodes.png)
+![Nodes](rough/nodes.png)
 
 ### Agent Flow Diagram
 
-![Flow Diagram](./flow.jpeg)
+![Flow Diagram](rough/flow.jpeg)
 
 ### Conditional Branching
 
-![Conditional Branching](./condional_branching.png)
+![Conditional Branching](rough/conditional_branching.png)
 
 ---
 
