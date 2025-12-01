@@ -17,8 +17,16 @@ __pycache__/
 
 # Project Specific
 data/
-logs/
-submission/
+/cache/
+/logs/
+/results/
+/submission/
+/tmp_trainer/
+temp_train.py
+final_benchmark_results/
+grading_output/
+*.jsonl
+*.json
 
 # Generated Code (Optional, but good to ignore temporary scripts)
 temp_train.py
