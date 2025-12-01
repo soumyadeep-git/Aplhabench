@@ -66,8 +66,11 @@ REQUIREMENTS:
      `FINAL METRIC: {{{{ "name": "accuracy", "value": 0.85 }}}}` (Use double braces for JSON).
    - Add `print(..., flush=True)` for all logs so they appear immediately.
 5. **Inference:** Generate predictions on the Test set (or `test.csv`).
-   - **CRITICAL TEST FILE CHECK:** If `test.csv` or a specific file (e.g., `en_test.csv`) is missing, iterate through the directory to find any CSV containing the word 'test' or 'sample_submission' and load that file for inference.
    - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set.
+   - **CRITICAL FIX:** If the test set CSV is missing, the Coder must **glob for all audio files not used in training**, assign placeholder IDs, and ensure the prediction output matches those IDs.
+6. **Output:** Save the final predictions to a file named `submission.csv`.
+   - **CRITICAL FIX:** If submission generation fails (even if training succeeded), the Coder must use `pd.DataFrame.to_csv('submission.csv', index=False, header=True, float_format='%.8f')` to guarantee format compliance.
+
 6. **Output:** Save the final predictions to a file named `submission.csv`.
    - Format must match `sample_submission.csv` if it exists.
 7. **Silence:** Do NOT use `plt.show()` or `input()`. Use `print()` for logs.
