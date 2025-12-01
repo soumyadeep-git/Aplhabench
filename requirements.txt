@@ -16,3 +16,4 @@ torchvision
 datasets
 torchaudio
 librosa
+tf-keras
