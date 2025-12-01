@@ -58,7 +58,7 @@ REQUIREMENTS:
 4. **Training:** 
    - Use `batch_size=4` (or `batch_size=2` for Image/Audio).
    - Use `num_train_epochs=1`.
-   - **CRITICAL:** For demonstration speed, ALWAYS subsample the data to the first 1,000 rows/images only (e.g., `dataset = dataset.select(range(1000))` or `df = df.iloc[:1000]`). For Audio/Vision, subsample to 200 items.
+   - **CRITICAL SPEEDUP:** For demonstration speed, **ALWAYS subsample the data to the first 50 rows/images only** (e.g., `dataset = dataset.select(range(50))` or `df = df.iloc[:50]`). For Audio/Vision, subsample to **20 items.**
    - **CRITICAL:** Set `save_strategy="no"` in `TrainingArguments` to prevent filling the disk with checkpoints.
    - **CRITICAL:** If `save_strategy="no"`, **ALWAYS** set `load_best_model_at_end=False`.
    - **CRITICAL:** Split data into Train/Validation (e.g. 80/20).
@@ -66,12 +66,10 @@ REQUIREMENTS:
      `FINAL METRIC: {{{{ "name": "accuracy", "value": 0.85 }}}}` (Use double braces for JSON).
    - Add `print(..., flush=True)` for all logs so they appear immediately.
 5. **Inference:** Generate predictions on the Test set (or `test.csv`).
-   - **CRITICAL:** For demonstration speed, ONLY predict on the first 100 rows of the test set.
+   - **CRITICAL SPEEDUP:** For demonstration speed, ONLY predict on the first **5** rows of the test set.
    - **CRITICAL FIX:** If the test set CSV is missing, the Coder must **glob for all audio files not used in training**, assign placeholder IDs, and ensure the prediction output matches those IDs.
 6. **Output:** Save the final predictions to a file named `submission.csv`.
    - **CRITICAL FIX:** If submission generation fails (even if training succeeded), the Coder must use `pd.DataFrame.to_csv('submission.csv', index=False, header=True, float_format='%.8f')` to guarantee format compliance.
-
-6. **Output:** Save the final predictions to a file named `submission.csv`.
    - Format must match `sample_submission.csv` if it exists.
 7. **Silence:** Do NOT use `plt.show()` or `input()`. Use `print()` for logs.
 8. **Categorical Handling:** DO NOT use `LabelEncoder` for feature columns (only for targets). Use `OrdinalEncoder` or `pd.get_dummies`.
@@ -82,7 +80,12 @@ REQUIREMENTS:
    - If Classification: Rename target column to `'labels'`.
    - **ALWAYS** use `eval_strategy` (NOT `evaluation_strategy`) in TrainingArguments.
    - **NEVER** use `tokenizer` argument in Trainer for Vision/Audio tasks.
-11. **Seq2Seq Tasks:** 
+11. **Multi-Label Handling (CRITICAL):**
+    - If the CONTEXT Target Column contains multiple, comma-separated values (e.g., 'A, B, C'), the task is Multi-Label Classification.
+    - **Labels:** The dataset must return the labels as a **list or tensor of shape (NumClasses,)** containing floats (0.0 or 1.0).
+    - **Loss:** The Coder MUST explicitly define the model to use `torch.nn.BCEWithLogitsLoss()` in its configuration or custom loss function.
+    - **Type:** Ensure the labels tensor is explicitly `torch.float32`.
+12. **Seq2Seq Tasks:** 
     - If Task is `SEQ2SEQ` (Text Normalization/Translation):
     - Do NOT use BERT Classifier.
     - **CRITICAL IMPORTS:** Use `from datasets import Dataset` and `from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq`.
@@ -93,16 +96,16 @@ REQUIREMENTS:
     - **CRITICAL TOKENIZATION:** The tokenization function MUST be defined as `def preprocess_function(examples):`. When using `batched=True`, the input access MUST be direct: `tokenizer(examples['before'], ...)` and `tokenizer(examples['labels'], ...)` **without any list comprehension like `[ex['before'] for ex in examples]`**.
     - Use `predict_with_generate=True` during evaluation.
     - **INFERENCE RULE:** Use `model.generate()` for final submission.
-12. **Image/Vision Tasks:**
+13. **Image/Vision Tasks:**
     - Use `from transformers import AutoImageProcessor, AutoModelForImageClassification, TrainingArguments, Trainer, DefaultDataCollator`.
     - **CRITICAL:** Use a TINY model: `microsoft/resnet-18`.
     - **CRITICAL:** When loading the model, use `ignore_mismatched_sizes=True` and `num_labels=...`.
-    - **CRITICAL:** Subsample the dataset to ONLY 200 images for training to prevent System RAM OOM.
+    - **CRITICAL:** Subsample the dataset to ONLY 20 images for training to prevent System RAM OOM.
     - Use `batch_size=2`.
     - **Dataset Format:** Your Dataset class `__getitem__` MUST return a dictionary: `return {{'pixel_values': inputs['pixel_values'][0], 'labels': label}}`.
-    - **CRITICAL TYPE CHECK:** If you encounter type errors during loss calculation (e.g., on MPS), ensure labels are cast correctly. If classification, use `torch.long`. If regression/MSE is used, use `torch.float32`.
+    - **CRITICAL TYPE CHECK:** If the task is Multi-Label, ensure the label tensor is explicitly `torch.float32`. If the task is Single-Class, ensure the label tensor is `torch.long`.
     - Use `DefaultDataCollator`.
-13. **Audio Tasks:**
+14. **Audio Tasks:**
     - Import `librosa`, `torchaudio` and `torchvision`.
     - **Strategy:** Convert Audio -> MelSpectrogram -> ResNet-18.
     - **CRITICAL DATA LOADING (FINAL FIX):** If `train.csv` is missing or the loaded labels are single-class (e.g., all 'src_wavs'), you must proceed with recursive glob. For label extraction in multi-class audio tasks where a CSV fails, prioritize extracting the label (e.g., species ID) from the first part of the filename using a pattern like: `r"([A-Za-z]+\d+)_"` to ensure unique classes are generated.
@@ -110,9 +113,9 @@ REQUIREMENTS:
     - **Dataset Class:**
       - Transform: `transform = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_mels=64)`.
       - Convert to 3 channels: `spec = spec.repeat(3, 1, 1)` (to match ResNet input).
-      - Return dictionary: `return {{'pixel_values': spec, 'labels': label_tensor.float()}}`.
+      - Return dictionary: `return {{'pixel_values': spec, 'labels': label_tensor.long()}}`.
     - **Model:** Use `AutoModelForImageClassification.from_pretrained("microsoft/resnet-18", num_labels=..., ignore_mismatched_sizes=True)`.
-    - **CRITICAL:** Subsample to 200 files for speed.
+    - **CRITICAL:** Subsample to 20 files for speed.
     - **CRITICAL:** Use `eval_strategy="epoch"` (do NOT use `evaluation_strategy`).
 
 ERROR HANDLING:
@@ -122,7 +125,9 @@ If you are fixing a previous error, analyze the `PREVIOUS_ERROR` provided and ad
 - If error contains "XGBoost Library could not be loaded", switch to `sklearn.ensemble.GradientBoostingClassifier`.
 - If `loss` is missing in BERT, ensure column is named `'labels'`.
 - If OOM occurs, reduce batch size.
-- If error contains "only defined for floating types" or "TorchCodec is required", you must use **librosa.load** and ensure labels are cast to **torch.float32** in the dataset class `__getitem__` (or `torch.long` if appropriate, but float is safer if the loss function is ambiguous).
+- If error contains "TorchCodec is required", you must use **librosa.load**.
+- **If error contains "Target size (torch.Size" and "input size" (dimension mismatch)**, the Coder MUST ensure the label tensor inside the dataset's `__getitem__` is a scalar index (`torch.tensor(label).long()`) and NOT a vector, unless the task is Multi-Label (see 11).
+- **If error contains "only defined for floating types" (e.g., mse_loss_out_mps),** ensure labels are explicitly cast to **torch.float32** if task is REGRESSION/Multi-Label, or **torch.long** if Single-Class CLASSIFICATION, making sure the model configuration matches the required label type.
 - If error contains "num_samples=0" or "No data loaded", the path finding is the critical failure. For audio/vision tasks, ensure you use the most robust, fully recursive glob: `glob.glob(os.path.join(dataset_dir, "**/*.wav"), recursive=True)`. If the data frame is empty, stop filtering or subsampling.
 - If error contains "'NoneType' object has no attribute 'group'", implement a safety check (if/else) for the regex match during label extraction.
 - If error contains "keyword argument repeated", check the syntax of the TrainingArguments call for duplicate parameters.
