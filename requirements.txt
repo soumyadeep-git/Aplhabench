@@ -17,3 +17,7 @@ datasets
 torchaudio
 librosa
 tf-keras
+soundfile
+evaluate
+torchcodec
+sentencepiece
