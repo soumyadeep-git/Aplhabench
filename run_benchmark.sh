@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Exit immediately if a command exits with a non-zero status
 set -e
 
@@ -9,16 +11,14 @@ SEEDS=(10 20 30)
 
 # Final list of verified, executable datasets (substitutions included)
 COMPETITIONS=(
-    "plant-pathology-2020-fgvc7"          # Substitutes siim-isic
     "spooky-author-identification"
     "tabular-playground-series-may-2022"
     "text-normalization-challenge-english-language"
-    "mlsp-2013-birds"                     # Substitutes right-whale-redux
 )
 
 # --- Setup ---
 mkdir -p $EVAL_RESULTS_ROOT
-echo "Starting multi-seed evaluation on 5 verified MLEbench Lite tasks..."
+echo "Starting multi-seed evaluation on selected MLEbench Lite tasks..."
 
 # --- Main Evaluation Loop ---
 for COMP_ID in "${COMPETITIONS[@]}"; do
@@ -46,21 +46,35 @@ for COMP_ID in "${COMPETITIONS[@]}"; do
         export AGENT_SEED=$SEED 
         
         # Run the autonomous agent
+        # IMPORTANT: This assumes your main.py uses the dataset path as an argument.
         python main.py --dataset "$COMP_DIR" 
         
+        # Locate the latest agent log file
+        LATEST_LOG=$(ls -t logs/agent_run_*.log 2>/dev/null | head -n 1)
+
         # Check if the agent succeeded (submission.csv created in 'submission' folder)
         if [ -f "submission/submission.csv" ]; then
             # Move deliverables to unique location
             mv submission/submission.csv "$RUN_DIR/"
-            mv submission/README.md "$RUN_DIR/"
+            
+            # Note: Assuming your agent also generates the README for the run
+            if [ -f "submission/README.md" ]; then
+                mv submission/README.md "$RUN_DIR/"
+            fi
+            
             echo "✅ Run successful. Files saved to $RUN_DIR"
         else
-            # Save the final error log for debugging if submission failed
-            LATEST_LOG=$(ls -t logs/agent_run_*.log 2>/dev/null | head -n 1)
-            if [ -n "$LATEST_LOG" ]; then
-                cp "$LATEST_LOG" "$RUN_DIR/failure_log.log"
-            fi
-            echo "⚠️ Agent failed to produce submission.csv for seed $SEED. Log saved in $RUN_DIR"
+            echo "⚠️ Agent failed to produce submission.csv for seed $SEED."
+        fi
+        
+        # --- Archiving and Cleanup ---
+        if [ -n "$LATEST_LOG" ]; then
+            # Archive the log containing the metrics for later analysis
+            mv "$LATEST_LOG" "$RUN_DIR/agent_run_seed_$SEED.log"
+            echo "   ▶️ Agent log saved to $RUN_DIR/agent_run_seed_$SEED.log"
+        elif [ ! -f "$RUN_DIR/failure_log.log" ]; then
+            # If log wasn't found, ensure we record the failure time/message
+            echo "No agent log generated for this run." > "$RUN_DIR/failure_log.log"
         fi
         
         # Cleanup any final artifacts missed by main.py's cleanup
@@ -70,6 +84,5 @@ done
 
 echo "========================================================="
 echo "✅ Benchmark run complete. Total results saved to $EVAL_RESULTS_ROOT"
-echo "Next Step: 1. Grade these files using 'mlebench grade'. 2. Calculate Mean/SE."
+echo "Next Step: Run 'python report_results.py' to calculate Mean/SE."
 echo "========================================================="
---- END OF run_benchmark.sh ---

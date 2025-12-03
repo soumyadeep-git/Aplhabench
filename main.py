@@ -14,11 +14,14 @@ def cleanup_artifacts():
         "results", 
         "logs", 
         "wandb", 
+        "checkpoints",
+        "runs",
+        "tmp_trainer",
         "cactus_model", 
         "cactus_classifier", 
-        "t5_text_normalization",
         "bert_model",
-        "temp_model"
+        "temp_model",
+        "__pycache__"
     ]
     
     for folder in temp_folders:
