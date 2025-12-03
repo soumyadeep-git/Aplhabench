@@ -17,19 +17,19 @@ def explorer_node(state: AgentState) -> dict:
     dataset_dir = state["dataset_dir"]
     log_event("EXPLORER", f"Analyzing dataset at: {dataset_dir}")
     
-    # step 1: evidence
+    # --- STEP 1: GATHER EVIDENCE ---
     
     # 1. Look at file structure
     structure = list_directory_structure(dataset_dir)
+    structure_lower = structure.lower()
     
-    # 2. Find the main CSV (usually train.csv or similar)
+    # 2. Find the main CSV
     csv_info = "No CSV found."
     potential_csvs = [
         f for f in os.listdir(dataset_dir) 
         if f.endswith(".csv") and "sample" not in f.lower()
     ]
     
-    # Prioritize 'train.csv' if it exists
     main_csv = None
     if "train.csv" in potential_csvs:
         main_csv = os.path.join(dataset_dir, "train.csv")
@@ -41,10 +41,11 @@ def explorer_node(state: AgentState) -> dict:
     
     # 3. Check for README
     readme_text = ""
-    if os.path.exists(os.path.join(dataset_dir, "README.md")):
-        readme_text = read_file_content(os.path.join(dataset_dir, "README.md"))
+    readme_path = os.path.join(dataset_dir, "README.md")
+    if os.path.exists(readme_path):
+        readme_text = read_file_content(readme_path)
 
-    # step 2: ask the brain what to do?
+    # --- STEP 2: CONSULT THE LLM ---
     
     llm = get_llm(temperature=0) # Low temp for factual extraction
     
@@ -68,37 +69,62 @@ def explorer_node(state: AgentState) -> dict:
     
     response = llm.invoke(messages)
     
-    # step 3: parse
+    # --- STEP 3: PARSE AND REFINE ---
     try:
         # Clean up Markdown code blocks if the LLM adds them
         content = response.content.replace("```json", "").replace("```", "").strip()
         analysis = json.loads(content)
         
-        modality = analysis.get("modality", "TABULAR")
-        task = analysis.get("task_type", "CLASSIFICATION")
+        # Extract fields with safe defaults
+        modality = analysis.get("modality", "TABULAR").upper()
+        task = analysis.get("task_type", "CLASSIFICATION").upper()
         target = analysis.get("target_column", "target")
-        plan = analysis.get("strategy_hint", "Use standard training.")
+        plan = analysis.get("strategy_hint", "Use standard training fallback.")
         
-        log_event("EXPLORER", f"Detected: {modality} | {task} | Target: {target}")
-        log_event("EXPLORER", f"Strategy: {plan}")
+        # --- HEURISTIC OVERRIDE (Safety Net) ---
+        # If the LLM says TABULAR but we see clear Audio/Image signals, override it.
+        # This helps with datasets like ICML Whale where CSVs look tabular but data is external.
+        
+        # Check for Audio
+        if modality == "TABULAR" and any(x in structure_lower for x in ['.wav', '.mp3', '.aiff', '.flac']):
+            modality = "AUDIO"
+            plan = "Detected audio files. Switch to MelSpectrogram + ResNet18."
+            log_event("EXPLORER", "Override: Switch TABULAR -> AUDIO based on file extensions.")
+            
+        # Check for Images
+        elif modality == "TABULAR" and any(x in structure_lower for x in ['.jpg', '.png', '.jpeg', 'images/']):
+            modality = "IMAGE"
+            plan = "Detected images. Switch to ResNet18."
+            log_event("EXPLORER", "Override: Switch TABULAR -> IMAGE based on file extensions.")
+
+        log_event("EXPLORER", f"Final Detection: {modality} | {task} | Target: {target}")
         
         return {
             "file_structure": structure,
             "sample_data": csv_info,
             "readme_content": readme_text,
-            "detected_modality": modality,
-            "detected_task": task,
+            "detected_modality": modality,  # Matches AgentState
+            "detected_task": task,          # Matches AgentState
             "target_column": target,
             "plan": plan,
-            "metadata": analysis, # Store the raw analysis for the coder
+            "metadata": analysis,
             "reasoning_trace": [f"Explorer analysis: Detected {modality} {task}. Plan: {plan}"]
         }
         
     except json.JSONDecodeError:
-        log_event("EXPLORER", "Failed to parse LLM JSON output. Defaulting to TABULAR.")
+        log_event("EXPLORER", "Failed to parse LLM JSON output. Applying emergency fallback.")
+        
+        # Emergency Fallback based on simple string matching
+        fallback_modality = "TABULAR"
+        if ".wav" in structure_lower or ".aiff" in structure_lower:
+            fallback_modality = "AUDIO"
+        elif ".jpg" in structure_lower or ".png" in structure_lower:
+            fallback_modality = "IMAGE"
+            
         return {
-            "detected_modality": "TABULAR",
+            "detected_modality": fallback_modality,
             "detected_task": "CLASSIFICATION",
-            "plan": "Fallback to Tabular XGBoost",
-            "reasoning_trace": ["Explorer failed to parse JSON. Fallback to Tabular."]
+            "target_column": "target", 
+            "plan": "JSON Parse Failed. Using Emergency Fallback.",
+            "reasoning_trace": ["Explorer failed to parse JSON. Hard fallback to safe defaults."]
         }

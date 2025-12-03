@@ -19,11 +19,12 @@ def coder_node(state: AgentState) -> dict:
     llm = get_llm(temperature=temp)
     
     system_prompt = CODER_SYSTEM_PROMPT.format(
-        modality=state["detected_modality"],
-        task=state["detected_task"],
-        plan=state["plan"],
-        target_column=state["target_column"],
-        dataset_dir=state["dataset_dir"]
+        # Match the keys WRITTEN by the Explorer node
+        modality=state.get("detected_modality", "UNKNOWN_MODALITY"), 
+        task=state.get("detected_task", "UNKNOWN_TASK"),         
+        plan=state.get("plan", "Standard minimal training."),      
+        target_column=state.get("target_column", "target"),       
+        dataset_dir=state.get("dataset_dir", "./data/fallback") 
     )
     
     user_content = f"""
